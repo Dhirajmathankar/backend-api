@@ -34,7 +34,8 @@ const ProfileSchema = new mongoose.Schema({
   isDeleted: {
     type: Boolean,
     default: false
-  }
+  },
+  accountType : String
 
 }, { timestamps: true });
 
