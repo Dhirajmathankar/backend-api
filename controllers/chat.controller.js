@@ -5,22 +5,21 @@ const emailService = require('../services/email.service');
 exports.handleChatMessage = async (req, res) => {
   try {
     const { name, email, mobile, message } = req.body;
+console.log(req.body);
+    if (!name || !email || !message) {
+      return res.status(400).json({ success: false, message: 'Missing fields' });
+    }
 
     let user = await ChatUser.findOne({ email });
 
-    // 🆕 New User
+    // 🆕 New user
     if (!user) {
-      user = await ChatUser.create({
-        name,
-        email,
-        mobile
-      });
+      user = await ChatUser.create({ name, email, mobile });
 
-      // ✉️ Welcome Email (ONLY ONCE)
       await emailService.sendMail({
         to: email,
         subject: 'Welcome to Mittra Sheet 🎉',
-        message: `Hi ${name}, welcome! We are happy to have you.`
+        message: `Hi ${name}, welcome! We’re happy to have you.`
       });
 
       user.isWelcomeMailSent = true;
@@ -28,19 +27,19 @@ exports.handleChatMessage = async (req, res) => {
     }
 
     // 💾 Save message
-    const chatMessage = await ChatMessage.create({
+    await ChatMessage.create({
       userId: user._id,
       message
     });
 
-    // 🔔 Admin Notification Email
+    // 🔔 Admin notification
     await emailService.sendMail({
-      to: process.env.EMAIL_USER,
-      subject: 'New Chat Message Received',
+      to: process.env.ADMIN_EMAIL,
+      subject: '📩 New Chat Message',
       message: `
-        Name: ${user.name}
-        Email: ${user.email}
-        Mobile: ${user.mobile}
+        Name: ${user.name}<br/>
+        Email: ${user.email}<br/>
+        Mobile: ${user.mobile}<br/>
         Message: ${message}
       `
     });
@@ -51,7 +50,7 @@ exports.handleChatMessage = async (req, res) => {
     });
 
   } catch (err) {
-    console.error(err);
-    res.status(500).json({ success: false });
+    console.error('CHAT ERROR:', err);
+    res.status(500).json({ success: false, message: err.message });
   }
 };
