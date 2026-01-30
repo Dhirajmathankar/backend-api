@@ -35,7 +35,7 @@ exports.handleChatMessage = async (req, res) => {
 
     // 🔔 Admin Notification Email
     await emailService.sendMail({
-      to: process.env.ADMIN_EMAIL,
+      to: process.env.EMAIL_USER,
       subject: 'New Chat Message Received',
       message: `
         Name: ${user.name}
