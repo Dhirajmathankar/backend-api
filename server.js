@@ -39,6 +39,28 @@ app.use('/api/card', permissionRoutes);
 const venues = require('./routes/venue.routes');
 app.use('/api/venues/', venues);
 
+const emailRoutes = require('./routes/email.routes');
+
+app.use('/api/email', emailRoutes);
+
+const emailService = require('./services/email.service');
+
+app.use('/api/chat', require('./routes/chat.routes'));
+
+
+// (async () => {
+//   try {
+//     await emailService.sendMail({
+//       to: 'dhirajmathankar@gmail.com',
+//       subject: 'Direct Test Email',
+//       message: 'Email service working without API endpoint 🚀'
+//     });
+//     console.log('✅ Direct email test successful');
+//   } catch (err) {
+//     console.error('❌ Direct email test failed:', err.message);
+//   }
+// })();
+
 
 // const path = require('path');
 
