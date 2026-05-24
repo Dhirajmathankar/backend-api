@@ -40,6 +40,11 @@ const NotificationLogSchema = new mongoose.Schema({
     enum: ['clean', 'will-get', 'will-give'],
     default: 'clean' // डिफ़ॉल्ट रूप से यह क्लीन कैश हिस्ट्री रहेगा
   },
+  type: { 
+    type: String, 
+    enum: ['credit', 'debit'], 
+    default: 'credit' 
+  },
   timestamp: {
     type: Date,
     default: Date.now

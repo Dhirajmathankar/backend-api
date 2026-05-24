@@ -1,25 +1,8 @@
-const express = require("express");
+const express = require('express');
 const router = express.Router();
-const authController = require("../controllers/auth.controller");
-const {protect} = require("../middleware/authMiddleware"); // ✅ import this
-const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const NotificationLog = require('../models/NotificationLog');
-
-
-
-// Public routes
-router.post("/register", authController.UserRegister);
-router.post("/login", authController.UserLogin);
-router.post("/refresh", authController.RefreshToken);
-
-// Private routes
-router.get("/profile", protect, authController.UserProfile);
-// OLD FOR THE CAR BOOKING SYSTEM 
-// router.post("/logout", protect, authController.UserLogout);
-
-
-
+const bcrypt = require('bcryptjs');
 
 // 🔒 JWT वेरिफिकेशन मिडिलवेयर
 const verifyToken = (req, res, next) => {
@@ -36,7 +19,7 @@ const verifyToken = (req, res, next) => {
 
 // 🔑 1. लॉगिन एंडपॉइंट (JWT टोकन जनरेशन के साथ)
 router.post('/login', async (req, res) => {
-   try {
+ try {
     const { email, password } = req.body;
 
     // 1. डेटाबेस से यूज़र निकालें
@@ -60,6 +43,7 @@ router.post('/login', async (req, res) => {
   }
 });
 
+// 📊 2. होम स्क्रीन डेटा एंडपॉइंट (MongoDB से रीयल-टाइम कैलकुलेशन)
 router.get('/dashboard-summary', verifyToken, async (req, res) => {
   try {
     const userId = req.user._id;
@@ -99,6 +83,7 @@ router.get('/dashboard-summary', verifyToken, async (req, res) => {
   }
 });
 
+
 // 📝 3. नया यूजर रजिस्ट्रेशन एंडपॉइंट (Sign Up)
 router.post('/signup', async (req, res) => {
   try {
@@ -119,45 +104,6 @@ router.post('/signup', async (req, res) => {
     return res.status(201).json({ token, user: newUserPayload });
 
   } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-});
-
-
-
-
-// 🔄 4. फॉरगॉट पासवर्ड एंडपॉइंट (Fix Validation Error)
-router.post('/forgot-password', async (req, res) => {
-  try {
-    const { email, newPassword } = req.body;
-
-    if (!email || !newPassword) {
-      return res.status(400).json({ message: "ईमेल और नया पासवर्ड दोनों ज़रूरी हैं भाई!" });
-    }
-
-    const User = require('../models/User'); // आपका यूज़र मॉडल
-
-    // 1. नए पासवर्ड को पहले ही हैश कर लें
-    const bcrypt = require('bcryptjs');
-    const salt = await bcrypt.genSalt(10);
-    const hashedPassword = await bcrypt.hash(newPassword, salt);
-
-    // 2. findOneAndUpdate का उपयोग करें जो स्कीमा वैलिडेशन को बाईपास कर देगा
-    const updatedUser = await User.findOneAndUpdate(
-      { email: email },
-      { $set: { password: hashedPassword } },
-      { new: true, runValidators: false } // runValidators: false ही जादू की चाबी है!
-    );
-    
-    if (!updatedUser) {
-      return res.status(404).json({ message: "यह ईमेल हमारे डेटाबेस में नहीं मिला भाई!" });
-    }
-
-    console.log(`🔒 Password successfully updated via findOneAndUpdate for: [${email}]`);
-    return res.status(200).json({ message: "पासवर्ड सफलतापूर्वक बदल गया है! अब लॉगिन करें।" });
-
-  } catch (err) {
-    console.error("❌ Forgot Password Error:", err.message);
     res.status(500).json({ error: err.message });
   }
 });
