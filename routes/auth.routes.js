@@ -9,8 +9,8 @@ const NotificationLog = require('../models/NotificationLog');
 
 
 // Public routes
-router.post("/register", authController.UserRegister);
-router.post("/login", authController.UserLogin);
+// router.post("/register", authController.UserRegister);
+// router.post("/login", authController.UserLogin);
 router.post("/refresh", authController.RefreshToken);
 
 // Private routes
