@@ -1,108 +1,110 @@
 const express = require("express");
 const router = express.Router();
 const authController = require("../controllers/auth.controller");
-const {protect} = require("../middleware/authMiddleware"); // ✅ import this
+const { protect } = require("../middleware/authMiddleware"); 
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
+
+// 💡 १. यूज़र मॉडल इम्पोर्ट करना ज़रूरी था भाई साहब
+const User = require('../models/User'); 
 const NotificationLog = require('../models/NotificationLog');
 
-
-
-// Public routes
-// router.post("/register", authController.UserRegister);
-// router.post("/login", authController.UserLogin);
-router.post("/refresh", authController.RefreshToken);
-
-// Private routes
-router.get("/profile", protect, authController.UserProfile);
-// OLD FOR THE CAR BOOKING SYSTEM 
-// router.post("/logout", protect, authController.UserLogout);
-
-
-
-
-// 🔒 JWT वेरिफिकेशन मिडिलवेयर
+// 🔒 JWT वेरिफिकेशन मिडिलवेयर (इन-फाइल बैकअप के लिए)
 const verifyToken = (req, res, next) => {
-  const token = req.headers['authorization']?.split(' ')[1];
-  if (!token) return res.status(403).json({ message: "Token missing" });
+  const authHeader = req.headers['authorization'];
+  console.log(`[MIDDLEWARE] Incoming Auth Header: ${authHeader}`);
+
+  const token = authHeader && authHeader.split(' ')[1];
+  if (!token) {
+    console.error("[MIDDLEWARE] Token missing in header!");
+    return res.status(403).json({ message: "Token missing" });
+  }
+
   try {
     const decoded = jwt.verify(token, process.env.JWT_SECRET || 'bhaichara_secret_key');
+    console.log(`[MIDDLEWARE] Token verified successfully for User ID: ${decoded._id || decoded.id}`);
     req.user = decoded;
     next();
   } catch (err) {
+    console.error(`[MIDDLEWARE] Token verification failed: ${err.message}`);
     return res.status(401).json({ message: "Invalid Token" });
   }
 };
 
-// 🔑 1. लॉगिन एंडपॉइंट (JWT टोकन जनरेशन के साथ)
-router.post('/login', async (req, res) => {
-   try {
-    const { email, password } = req.body;
+// ==========================================
+// 🛣️ ROUTES DEFINITION
+// ==========================================
 
+// Public routes
+router.post("/refresh", authController.RefreshToken);
+
+// Private routes
+router.get("/profile", protect, authController.UserProfile);
+
+// 🔑 लॉगिन एंडपॉइंट (टोकन + रिफ्रेश टोकन + कड़क लॉगिंग के साथ)
+router.post('/login', async (req, res) => {
+  const { email, password } = req.body;
+  console.log(`\n============== 🔐 LOGIN ATTEMPT ==============`);
+  console.log(`[LOGIN] Email received: ${email}`);
+
+  try {
     // 1. डेटाबेस से यूज़र निकालें
     const user = await User.findOne({ email });
     if (!user) {
-      return res.status(400).json({ message: "यूज़र नहीं मिला भाई!" });
+      console.warn(`[LOGIN FAIL] User not found for email: ${email}`);
+      return res.status(400).json({ message: "यूज़र नहीं मिला!" });
     }
+    console.log(`[LOGIN] User found in DB. ID: ${user._id}`);
 
-    // 2. मेथड कॉल करें (अगर स्टेप 1 सही है, तो यह एरर नहीं देगा)
+    // 2. पासवर्ड मैच करें
+    // नोट: अगर आपके User Model में matchPassword मेथड बना है तो ठीक, 
+    // नहीं तो आप सीधे bcrypt.compare(password, user.password) भी कर सकते हैं।
     const isMatch = await user.matchPassword(password);
     if (!isMatch) {
+      console.warn(`[LOGIN FAIL] Password incorrect for email: ${email}`);
       return res.status(400).json({ message: "गलत पासवर्ड!" });
     }
+    console.log(`[LOGIN] Password verified successfully.`);
 
-    // 3. टोकन जनरेशन लॉजिक...
-    // res.status(200).json({ token, user });
+    // 3. 🎯 JWT टोकन जनरेशन लॉजिक (जो आपके कोड में गायब था)
+    const jwtSecret = process.env.JWT_SECRET || 'bhaichara_secret_key';
+    
+    // मेन एक्सेस टोकन (उदा. 1 दिन के लिए वैलिड)
+    const token = jwt.sign(
+      { _id: user._id, email: user.email }, 
+      jwtSecret, 
+      { expiresIn: '1d' }
+    );
+
+    // 🔄 रिफ्रेश टोकन (जो आप बोल रहे थे कि पहले जाता था - 7 दिन के लिए वैलिड)
+    const refreshToken = jwt.sign(
+      { _id: user._id }, 
+      jwtSecret, 
+      { expiresIn: '7d' }
+    );
+
+    console.log(`[LOGIN SUCCESS] Access Token generated.`);
+    console.log(`[LOGIN SUCCESS] Refresh Token generated.`);
+    console.log(`==============================================\n`);
+
+    // 4. रिस्पॉन्स भेजें (बिना किसी एरर के सब फ्रंटएंड पर जाएगा)
+    return res.status(200).json({ 
+      token: token, 
+      refreshToken: refreshToken, 
+      user: {
+        _id: user._id,
+        email: user.email,
+        phone: user.phone,
+        fullname: user.fullname,
+        activeTripId: user.activeTripId || ''
+      }
+    });
 
   } catch (err) {
-    process.processTicksAndRejections(err); // एरर हैंडलिंग
-    res.status(500).json({ error: err.message });
+    console.error("❌ [LOGIN CRITICAL ERROR]:", err.bind ? err : err.message);
+    return res.status(500).json({ error: err.message });
   }
 });
-
-// router.get('/dashboard-summary', verifyToken, async (req, res) => {
-//   try {
-//     const userId = req.user._id;
-//     const today = new Date();
-//     today.setHours(0, 0, 0, 0);
-
-//     // MongoDB एग्रीगेशन पाइपलाइन: Total In (Credit) और Out (Debit) निकालने के लिए
-//     const stats = await NotificationLog.aggregate([
-//       { $match: { userId: userId } },
-//       {
-//         $group: {
-//           _id: null,
-//           totalIn: { $sum: { $cond: [{ $eq: ["$type", "credit"] }, "$amount", 0] } },
-//           totalOut: { $sum: { $cond: [{ $eq: ["$type", "debit"] }, "$amount", 0] } }
-//         }
-//       }
-//     ]);
-
-//     // आज के ट्रांजैक्शन्स लिस्ट निकालना
-//     const recentTransactions = await NotificationLog.find({
-//       userId: userId,
-//       timestamp: { $gte: today }
-//     }).sort({ timestamp: -1 });
-
-//     const summary = stats[0] || { totalIn: 0, totalOut: 0 };
-
-//     res.status(200).json({
-//       totalBalance: 25480 + (summary.totalIn - summary.totalOut), // बेस अमाउंट + लाइव सिंक
-//       youWillGive: summary.totalOut,
-//       youWillGet: summary.totalIn,
-//       monthlyBudget: 20000,
-//       recentTransactions: recentTransactions
-//     });
-
-//   } catch (err) {
-//     res.status(500).json({ error: err.message });
-//   }
-// });
-
-// 📝 3. नया यूजर रजिस्ट्रेशन एंडपॉइंट (Sign Up)
-
-
-
 
 
 router.post('/signup', async (req, res) => {
