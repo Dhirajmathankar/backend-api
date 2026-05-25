@@ -316,6 +316,7 @@ app.use('/api/venues', require('./routes/venue.routes'));
 app.use('/api/email', require('./routes/email.routes'));
 app.use('/api/chat', require('./routes/chat.routes'));
 app.use('/api/notifications', require('./routes/notification.routes'));
+app.use('/api/dashboard', require('./routes/dashboard.routes'));
 
 // स्टैटिक इमेजेस सर्व करने का फोल्डर
 const IMAGES_FOLDER = "D:/Project New/APP_LOGIN_PAGE/ALL-IMAGE-PROJECT";
@@ -353,59 +354,115 @@ io.on("connection", (socket) => {
   });
 
   // 📥 एंड्रॉइड ऐप से आने वाला लाइव नोटिफिकेशन लिस्नर
-  socket.on("live_notification_trigger", async (data) => {
-    try {
-      console.log(`📥 Live Pay Notification Captured for User [${userId}]:`, data.body);
+  // socket.on("live_notification_trigger", async (data) => {
+  //   try {
+  //     console.log(`📥 Live Pay Notification Captured for User [${userId}]:`, data.body);
 
-      // टेक्स्ट मैसेज में से अमाउंट और मर्चेंट का नाम फिल्टर करना (Regex Parser)
-      const parsedInfo = parseNotificationText(data.body);
-      const isDebit = data.body.toLowerCase().includes('sent') || data.body.toLowerCase().includes('debited');
-      // 💾 MongoDB में एंट्री को प्रॉपर स्टोर करना
-      const newLog = new NotificationLog({
-        userId: userId,
-        activeTripId: (activeTripId && activeTripId.trim() !== "") ? activeTripId : null,
-        appPackage: data.appPackage,
-        title: data.title,
-        rawBody: data.body,
-        amount: parsedInfo.amount,
-        merchant: parsedInfo.merchant,
-        type: isDebit ? 'debit' : 'credit',
-        isGroupExpense: !!(activeTripId && activeTripId.trim() !== ""),
-        timestamp: data.timestamp || Date.now()
-      });
+  //     // टेक्स्ट मैसेज में से अमाउंट और मर्चेंट का नाम फिल्टर करना (Regex Parser)
+  //     const parsedInfo = parseNotificationText(data.body);
+  //     const isDebit = data.body.toLowerCase().includes('sent') || data.body.toLowerCase().includes('debited');
+  //     // 💾 MongoDB में एंट्री को प्रॉपर स्टोर करना
+  //     const newLog = new NotificationLog({
+  //       userId: userId,
+  //       activeTripId: (activeTripId && activeTripId.trim() !== "") ? activeTripId : null,
+  //       appPackage: data.appPackage,
+  //       title: data.title,
+  //       rawBody: data.body,
+  //       amount: parsedInfo.amount,
+  //       merchant: parsedInfo.merchant,
+  //       type: isDebit ? 'debit' : 'credit',
+  //       isGroupExpense: !!(activeTripId && activeTripId.trim() !== ""),
+  //       timestamp: data.timestamp || Date.now()
+  //     });
 
-      const savedLog = await newLog.save();
-      console.log("💾 Notification Data successfully backed up in MongoDB!");
+  //     const savedLog = await newLog.save();
+  //     console.log("💾 Notification Data successfully backed up in MongoDB!");
 
-      // पेलोड जो एंगुलर फ्रंटएंड को रीयल-टाइम रेंडर करने के लिए भेजा जाएगा
-      const uiPayload = {
-        logId: savedLog._id,
-        appPackage: savedLog.appPackage,
-        title: savedLog.title,
-        rawBody: savedLog.rawBody,
-        amount: savedLog.amount,
-        merchant: savedLog.merchant,
-        timestamp: savedLog.timestamp,
-        type: savedLog.type,
-        isGroupExpense: savedLog.isGroupExpense
-      };
+  //     // पेलोड जो एंगुलर फ्रंटएंड को रीयल-टाइम रेंडर करने के लिए भेजा जाएगा
+  //     const uiPayload = {
+  //       logId: savedLog._id,
+  //       appPackage: savedLog.appPackage,
+  //       title: savedLog.title,
+  //       rawBody: savedLog.rawBody,
+  //       amount: savedLog.amount,
+  //       merchant: savedLog.merchant,
+  //       timestamp: savedLog.timestamp,
+  //       type: savedLog.type,
+  //       isGroupExpense: savedLog.isGroupExpense
+  //     };
 
-      // 📢 लाइव ब्रॉडकास्ट डिसीजन मेकर
-      if (activeTripId && activeTripId.trim() !== "") {
-        // पूरे ग्रुप के दोस्तों की एंगुलर स्क्रीन पर एक साथ सिंक करें
-        io.to(activeTripId).emit("ui_notification_update", uiPayload);
-        console.log(`📢 Group Room (${activeTripId}) updated live!`);
-      } else {
-        // सिर्फ उस सिंगल यूज़र की वेब स्क्रीन पर सेंड करें
-        io.to(userId).emit("ui_notification_update", uiPayload);
-        console.log(`🔒 Private User Screen (${userId}) updated live!`);
-      }
+  //     // 📢 लाइव ब्रॉडकास्ट डिसीजन मेकर
+  //     if (activeTripId && activeTripId.trim() !== "") {
+  //       // पूरे ग्रुप के दोस्तों की एंगुलर स्क्रीन पर एक साथ सिंक करें
+  //       io.to(activeTripId).emit("ui_notification_update", uiPayload);
+  //       console.log(`📢 Group Room (${activeTripId}) updated live!`);
+  //     } else {
+  //       // सिर्फ उस सिंगल यूज़र की वेब स्क्रीन पर सेंड करें
+  //       io.to(userId).emit("ui_notification_update", uiPayload);
+  //       console.log(`🔒 Private User Screen (${userId}) updated live!`);
+  //     }
 
-    } catch (err) {
-      console.error("❌ Notification interception failed:", err.message);
+  //   } catch (err) {
+  //     console.error("❌ Notification interception failed:", err.message);
+  //   }
+  // });
+
+
+
+  // 📥 एंड्रॉइड ऐप से आने वाला लाइव नोटिफिकेशन लिस्नर (server.js के अंदर इसे रिप्लेस करें)
+socket.on("live_notification_trigger", async (data) => {
+  try {
+    console.log(`📥 Live Pay Notification Captured for User [${userId}]:`, data.body);
+
+    const parsedInfo = parseNotificationText(data.body);
+    const isDebit = data.body.toLowerCase().includes('sent') || data.body.toLowerCase().includes('debited') || data.body.toLowerCase().includes('paid');
+    
+    // 💾 MongoDB में लॉग सुरक्षित करें
+    const newLog = new NotificationLog({
+      userId: userId,
+      activeTripId: (activeTripId && activeTripId.trim() !== "") ? activeTripId : null,
+      appPackage: data.appPackage,
+      title: data.title,
+      rawBody: data.body,
+      amount: parsedInfo.amount,
+      merchant: parsedInfo.merchant,
+      type: isDebit ? 'debit' : 'credit',
+      isGroupExpense: !!(activeTripId && activeTripId.trim() !== ""),
+      timestamp: data.timestamp || Date.now()
+    });
+
+    const savedLog = await newLog.save();
+    console.log("💾 Notification Data successfully backed up in MongoDB!");
+
+    // 🔥 प्रो-आर्किटेक्चर मैजिक: बैकग्राउंड वॉलेट को तुरंत अपडेट करें!
+    const { updateWalletBalance } = require('./utils/balanceEngine');
+    await updateWalletBalance(userId);
+
+    const uiPayload = {
+      logId: savedLog._id,
+      appPackage: savedLog.appPackage,
+      title: savedLog.title,
+      rawBody: savedLog.rawBody,
+      amount: savedLog.amount,
+      merchant: savedLog.merchant,
+      timestamp: savedLog.timestamp,
+      type: savedLog.type,
+      isGroupExpense: savedLog.isGroupExpense
+    };
+
+    // 📢 लाइव ब्रॉडकास्ट डेसिशन
+    if (activeTripId && activeTripId.trim() !== "") {
+      io.to(activeTripId).emit("ui_notification_update", uiPayload);
+      console.log(`📢 Group Room (${activeTripId}) updated live!`);
+    } else {
+      io.to(userId).emit("ui_notification_update", uiPayload);
+      console.log(`🔒 Private User Screen (${userId}) updated live!`);
     }
-  });
 
+  } catch (err) {
+    console.error("❌ Notification interception failed:", err.message);
+  }
+});
   socket.on("disconnect", () => {
     console.log(`🔌 Socket connection closed for user: ${userId}`);
   });
