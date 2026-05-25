@@ -60,46 +60,51 @@ router.post('/login', async (req, res) => {
   }
 });
 
-router.get('/dashboard-summary', verifyToken, async (req, res) => {
-  try {
-    const userId = req.user._id;
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
+// router.get('/dashboard-summary', verifyToken, async (req, res) => {
+//   try {
+//     const userId = req.user._id;
+//     const today = new Date();
+//     today.setHours(0, 0, 0, 0);
 
-    // MongoDB एग्रीगेशन पाइपलाइन: Total In (Credit) और Out (Debit) निकालने के लिए
-    const stats = await NotificationLog.aggregate([
-      { $match: { userId: userId } },
-      {
-        $group: {
-          _id: null,
-          totalIn: { $sum: { $cond: [{ $eq: ["$type", "credit"] }, "$amount", 0] } },
-          totalOut: { $sum: { $cond: [{ $eq: ["$type", "debit"] }, "$amount", 0] } }
-        }
-      }
-    ]);
+//     // MongoDB एग्रीगेशन पाइपलाइन: Total In (Credit) और Out (Debit) निकालने के लिए
+//     const stats = await NotificationLog.aggregate([
+//       { $match: { userId: userId } },
+//       {
+//         $group: {
+//           _id: null,
+//           totalIn: { $sum: { $cond: [{ $eq: ["$type", "credit"] }, "$amount", 0] } },
+//           totalOut: { $sum: { $cond: [{ $eq: ["$type", "debit"] }, "$amount", 0] } }
+//         }
+//       }
+//     ]);
 
-    // आज के ट्रांजैक्शन्स लिस्ट निकालना
-    const recentTransactions = await NotificationLog.find({
-      userId: userId,
-      timestamp: { $gte: today }
-    }).sort({ timestamp: -1 });
+//     // आज के ट्रांजैक्शन्स लिस्ट निकालना
+//     const recentTransactions = await NotificationLog.find({
+//       userId: userId,
+//       timestamp: { $gte: today }
+//     }).sort({ timestamp: -1 });
 
-    const summary = stats[0] || { totalIn: 0, totalOut: 0 };
+//     const summary = stats[0] || { totalIn: 0, totalOut: 0 };
 
-    res.status(200).json({
-      totalBalance: 25480 + (summary.totalIn - summary.totalOut), // बेस अमाउंट + लाइव सिंक
-      youWillGive: summary.totalOut,
-      youWillGet: summary.totalIn,
-      monthlyBudget: 20000,
-      recentTransactions: recentTransactions
-    });
+//     res.status(200).json({
+//       totalBalance: 25480 + (summary.totalIn - summary.totalOut), // बेस अमाउंट + लाइव सिंक
+//       youWillGive: summary.totalOut,
+//       youWillGet: summary.totalIn,
+//       monthlyBudget: 20000,
+//       recentTransactions: recentTransactions
+//     });
 
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-});
+//   } catch (err) {
+//     res.status(500).json({ error: err.message });
+//   }
+// });
 
 // 📝 3. नया यूजर रजिस्ट्रेशन एंडपॉइंट (Sign Up)
+
+
+
+
+
 router.post('/signup', async (req, res) => {
   try {
     const { email, password, phone, activeTripId } = req.body;
