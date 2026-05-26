@@ -31,6 +31,14 @@ const NotificationLogSchema = new mongoose.Schema({
     type: String,
     default: "Unknown"
   },
+  senderName: { // 📥 पैसा कहाँ से आया (भेजने वाले का नाम)
+    type: String,
+    default: "Unknown Sender"
+  },
+  receiverName: { // 📤 पैसा कहाँ गया (पाने वाले का नाम)
+    type: String,
+    default: "Unknown Receiver"
+  },
   isGroupExpense: {
     type: Boolean,
     default: false

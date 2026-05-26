@@ -273,6 +273,208 @@
 
 
 
+// const express = require("express");
+// const dotenv = require("dotenv");
+// const connectDB = require("./config/db");
+// const cors = require("cors");
+// const path = require('path');
+// const http = require('http'); // ⚡ सॉकेट सर्वर के लिए http मॉड्यूल
+
+// dotenv.config();
+// connectDB();
+
+// const app = express();
+
+// // ⚙️ मिडिलवेयर्स
+// app.use(cors());
+// app.use(express.json({ limit: '50mb' })); 
+// app.use(express.urlencoded({ limit: '50mb', extended: true }));
+
+// // ⚡ 1. CREATE HTTP SERVER AND INTEGRATE SOCKET.IO WITH CORS SETTINGS
+// const server = http.createServer(app); 
+// const io = require('socket.io')(server, {
+//   cors: {
+//     origin: "*", 
+//     methods: ["GET", "POST"]
+//   }
+// });
+
+// // इमेज सेव डायरेक्टरी
+// const UPLOAD_DIR = process?.env?.UPLOAD_DIR || "D:/Project New/APP_LOGIN_PAGE/ALL-IMAGE-PROJECT";
+
+// app.get("/", (req, res) => {
+//   res.send("Backend API is running...");
+// });
+
+// // 📌 एपीआई राउट्स बाइंडिंग
+// app.use("/api/auth", require("./routes/auth.routes"));
+// app.use("/api/vendors", require("./routes/vendor.routes"));
+// app.use("/api/user-profile", require("./routes/profile-user-vender.routes"));
+// app.use("/api/permissions", require('./routes/permissions.routes'));
+// app.use('/api/card', require('./routes/permissions.routes')); // कार्ड राउट्स
+// app.use('/api/venues', require('./routes/venue.routes'));
+// app.use('/api/email', require('./routes/email.routes'));
+// app.use('/api/chat', require('./routes/chat.routes'));
+// app.use('/api/notifications', require('./routes/notification.routes'));
+// app.use('/api/dashboard', require('./routes/dashboard.routes'));
+
+// // स्टैटिक इमेजेस सर्व करने का फोल्डर
+// const IMAGES_FOLDER = "D:/Project New/APP_LOGIN_PAGE/ALL-IMAGE-PROJECT";
+// app.use('/images', express.static(IMAGES_FOLDER));
+// console.log("Images are being served from:", IMAGES_FOLDER);
+
+// // 🌐 2. CORE SOCKET.IO IMPLEMENTATION (SINGLE SINGLETON BLOCK - NO DUPLICATES)
+// const NotificationLog = require('./models/NotificationLog');
+// const { parseNotificationText } = require('./utils/parser');
+
+// io.on("connection", (socket) => {
+//   // फ्रंटएंड (Angular) और एंड्रॉइड (Kotlin) दोनों से क्रेडेंशियल्स कैप्चर करना
+//   const { userId, email, phone, activeTripId } = socket.handshake.auth;
+
+//   if (userId) {
+//     // 🔒 प्रत्येक यूजर को उसकी यूनिक आईडी के प्राइवेट रूम में अटैच करना
+//     socket.join(userId);
+//     console.log(`👤 User Room Activated: [${userId}] for ${email || 'Android App'}`);
+
+//     // ✈️ ग्रुप ट्रिप हैंडलिंग: यदि यूजर किसी एक्टिव ट्रिप में है, तभी रूम जॉइन करवाए
+//     if (activeTripId && activeTripId.trim() !== "") {
+//       socket.join(activeTripId);
+//       console.log(`✈️ User attached to Active Group Trip: [${activeTripId}]`);
+//     } else {
+//       console.log(`ℹ️ User [${email || userId}] वर्तमान में किसी भी ट्रip का हिस्सा नहीं है (पर्सनल मोड सक्रिय)`);
+//     }
+//   }
+
+//   // 🔄 फ्रंटएंड (Angular) से डायनेमिकली ट्रिप रूम स्विच या नया रूम जॉइन करने का हैंडलर
+//   socket.on("join_trip_room", ({ tripId }) => {
+//     if (tripId && tripId.trim() !== "") {
+//       socket.join(tripId);
+//       console.log(`🔄 Socket context switched to Trip Room: ${tripId}`);
+//     }
+//   });
+
+//   // 📥 एंड्रॉइड ऐप से आने वाला लाइव नोटिफिकेशन लिस्नर
+//   // socket.on("live_notification_trigger", async (data) => {
+//   //   try {
+//   //     console.log(`📥 Live Pay Notification Captured for User [${userId}]:`, data.body);
+
+//   //     // टेक्स्ट मैसेज में से अमाउंट और मर्चेंट का नाम फिल्टर करना (Regex Parser)
+//   //     const parsedInfo = parseNotificationText(data.body);
+//   //     const isDebit = data.body.toLowerCase().includes('sent') || data.body.toLowerCase().includes('debited');
+//   //     // 💾 MongoDB में एंट्री को प्रॉपर स्टोर करना
+//   //     const newLog = new NotificationLog({
+//   //       userId: userId,
+//   //       activeTripId: (activeTripId && activeTripId.trim() !== "") ? activeTripId : null,
+//   //       appPackage: data.appPackage,
+//   //       title: data.title,
+//   //       rawBody: data.body,
+//   //       amount: parsedInfo.amount,
+//   //       merchant: parsedInfo.merchant,
+//   //       type: isDebit ? 'debit' : 'credit',
+//   //       isGroupExpense: !!(activeTripId && activeTripId.trim() !== ""),
+//   //       timestamp: data.timestamp || Date.now()
+//   //     });
+
+//   //     const savedLog = await newLog.save();
+//   //     console.log("💾 Notification Data successfully backed up in MongoDB!");
+
+//   //     // पेलोड जो एंगुलर फ्रंटएंड को रीयल-टाइम रेंडर करने के लिए भेजा जाएगा
+//   //     const uiPayload = {
+//   //       logId: savedLog._id,
+//   //       appPackage: savedLog.appPackage,
+//   //       title: savedLog.title,
+//   //       rawBody: savedLog.rawBody,
+//   //       amount: savedLog.amount,
+//   //       merchant: savedLog.merchant,
+//   //       timestamp: savedLog.timestamp,
+//   //       type: savedLog.type,
+//   //       isGroupExpense: savedLog.isGroupExpense
+//   //     };
+
+//   //     // 📢 लाइव ब्रॉडकास्ट डिसीजन मेकर
+//   //     if (activeTripId && activeTripId.trim() !== "") {
+//   //       // पूरे ग्रुप के दोस्तों की एंगुलर स्क्रीन पर एक साथ सिंक करें
+//   //       io.to(activeTripId).emit("ui_notification_update", uiPayload);
+//   //       console.log(`📢 Group Room (${activeTripId}) updated live!`);
+//   //     } else {
+//   //       // सिर्फ उस सिंगल यूज़र की वेब स्क्रीन पर सेंड करें
+//   //       io.to(userId).emit("ui_notification_update", uiPayload);
+//   //       console.log(`🔒 Private User Screen (${userId}) updated live!`);
+//   //     }
+
+//   //   } catch (err) {
+//   //     console.error("❌ Notification interception failed:", err.message);
+//   //   }
+//   // });
+
+
+
+//   // 📥 एंड्रॉइड ऐप से आने वाला लाइव नोटिफिकेशन लिस्नर (server.js के अंदर इसे रिप्लेस करें)
+// socket.on("live_notification_trigger", async (data) => {
+//   try {
+//     console.log(`📥 Live Pay Notification Captured for User [${userId}]:`, data.body);
+
+//     const parsedInfo = parseNotificationText(data.body);
+//     const isDebit = data.body.toLowerCase().includes('sent') || data.body.toLowerCase().includes('debited') || data.body.toLowerCase().includes('paid');
+    
+//     // 💾 MongoDB में लॉग सुरक्षित करें
+//     const newLog = new NotificationLog({
+//       userId: userId,
+//       activeTripId: (activeTripId && activeTripId.trim() !== "") ? activeTripId : null,
+//       appPackage: data.appPackage,
+//       title: data.title,
+//       rawBody: data.body,
+//       amount: parsedInfo.amount,
+//       merchant: parsedInfo.merchant,
+//       type: isDebit ? 'debit' : 'credit',
+//       isGroupExpense: !!(activeTripId && activeTripId.trim() !== ""),
+//       timestamp: data.timestamp || Date.now()
+//     });
+
+//     const savedLog = await newLog.save();
+//     console.log("💾 Notification Data successfully backed up in MongoDB!");
+
+//     // 🔥 प्रो-आर्किटेक्चर मैजिक: बैकग्राउंड वॉलेट को तुरंत अपडेट करें!
+//     const { updateWalletBalance } = require('./utils/balanceEngine');
+//     await updateWalletBalance(userId);
+
+//     const uiPayload = {
+//       logId: savedLog._id,
+//       appPackage: savedLog.appPackage,
+//       title: savedLog.title,
+//       rawBody: savedLog.rawBody,
+//       amount: savedLog.amount,
+//       merchant: savedLog.merchant,
+//       timestamp: savedLog.timestamp,
+//       type: savedLog.type,
+//       isGroupExpense: savedLog.isGroupExpense
+//     };
+
+//     // 📢 लाइव ब्रॉडकास्ट डेसिशन
+//     if (activeTripId && activeTripId.trim() !== "") {
+//       io.to(activeTripId).emit("ui_notification_update", uiPayload);
+//       console.log(`📢 Group Room (${activeTripId}) updated live!`);
+//     } else {
+//       io.to(userId).emit("ui_notification_update", uiPayload);
+//       console.log(`🔒 Private User Screen (${userId}) updated live!`);
+//     }
+
+//   } catch (err) {
+//     console.error("❌ Notification interception failed:", err.message);
+//   }
+// });
+//   socket.on("disconnect", () => {
+//     console.log(`🔌 Socket connection closed for user: ${userId}`);
+//   });
+// });
+
+// // 🚀 SERVER LISTEN (IMPORTANT: सॉकेट के लिए 'server.listen' ही इस्तेमाल होना चाहिए)
+// const PORT = process.env.PORT || 5000;
+// server.listen(PORT, () => console.log(`🚀 Server running on port ${PORT}`));
+
+
+
+
 const express = require("express");
 const dotenv = require("dotenv");
 const connectDB = require("./config/db");
@@ -311,7 +513,7 @@ app.use("/api/auth", require("./routes/auth.routes"));
 app.use("/api/vendors", require("./routes/vendor.routes"));
 app.use("/api/user-profile", require("./routes/profile-user-vender.routes"));
 app.use("/api/permissions", require('./routes/permissions.routes'));
-app.use('/api/card', require('./routes/permissions.routes')); // कार्ड राउट्स
+app.use('/api/card', require('./routes/permissions.routes')); 
 app.use('/api/venues', require('./routes/venue.routes'));
 app.use('/api/email', require('./routes/email.routes'));
 app.use('/api/chat', require('./routes/chat.routes'));
@@ -323,151 +525,140 @@ const IMAGES_FOLDER = "D:/Project New/APP_LOGIN_PAGE/ALL-IMAGE-PROJECT";
 app.use('/images', express.static(IMAGES_FOLDER));
 console.log("Images are being served from:", IMAGES_FOLDER);
 
-// 🌐 2. CORE SOCKET.IO IMPLEMENTATION (SINGLE SINGLETON BLOCK - NO DUPLICATES)
+// 🌐 2. CORE SOCKET.IO IMPLEMENTATION (MULTIPLE USER FRIENDLY)
 const NotificationLog = require('./models/NotificationLog');
 const { parseNotificationText } = require('./utils/parser');
+const { updateWalletBalance } = require('./utils/balanceEngine'); // 🔥 टॉप पर इम्पोर्ट कर लिया
 
 io.on("connection", (socket) => {
-  // फ्रंटएंड (Angular) और एंड्रॉइड (Kotlin) दोनों से क्रेडेंशियल्स कैप्चर करना
-  const { userId, email, phone, activeTripId } = socket.handshake.auth;
+  console.log(`🔌 New Raw Socket Client Connected: ${socket.id}`);
 
-  if (userId) {
-    // 🔒 प्रत्येक यूजर को उसकी यूनिक आईडी के प्राइवेट रूम में अटैच करना
-    socket.join(userId);
-    console.log(`👤 User Room Activated: [${userId}] for ${email || 'Android App'}`);
+  // 📥 फ्रंटएंड (Angular) या एंड्रॉइड जब पहली बार कनेक्ट हो तो रूम्स जॉइन कराएं
+  const initialUserId = socket.handshake.auth?.userId;
+  const initialTripId = socket.handshake.auth?.activeTripId;
 
-    // ✈️ ग्रुप ट्रिप हैंडलिंग: यदि यूजर किसी एक्टिव ट्रिप में है, तभी रूम जॉइन करवाए
-    if (activeTripId && activeTripId.trim() !== "") {
-      socket.join(activeTripId);
-      console.log(`✈️ User attached to Active Group Trip: [${activeTripId}]`);
-    } else {
-      console.log(`ℹ️ User [${email || userId}] वर्तमान में किसी भी ट्रip का हिस्सा नहीं है (पर्सनल मोड सक्रिय)`);
+  if (initialUserId) {
+    socket.join(initialUserId);
+    console.log(`👤 Room Activated on Connect: [${initialUserId}] (Socket ID: ${socket.id})`);
+    
+    if (initialTripId && initialTripId.trim() !== "") {
+      socket.join(initialTripId);
+      console.log(`✈️ Trip Room Attached on Connect: [${initialTripId}]`);
     }
   }
 
-  // 🔄 फ्रंटएंड (Angular) से डायनेमिकली ट्रिप रूम स्विच या नया रूम जॉइन करने का हैंडलर
-  socket.on("join_trip_room", ({ tripId }) => {
+  // 🔄 फ्रंटएंड (Angular) से डायनेमिकली ट्रिप रूम स्विच करने का हैंडलर
+  // जब कोई भी यूजर अपनी स्क्रीन पर ट्रिप बदलेगा, यह उसे सही ग्रुप रूम में डाल देगा
+  socket.on("join_trip_room", ({ tripId, userId }) => {
+    if (userId) {
+      socket.join(userId);
+    }
     if (tripId && tripId.trim() !== "") {
       socket.join(tripId);
-      console.log(`🔄 Socket context switched to Trip Room: ${tripId}`);
+      console.log(`🔄 [ROOM_SWITCH] User [${userId || 'Unknown'}] shifted to Trip Room: ${tripId}`);
     }
   });
 
-  // 📥 एंड्रॉइड ऐप से आने वाला लाइव नोटिफिकेशन लिस्नर
-  // socket.on("live_notification_trigger", async (data) => {
-  //   try {
-  //     console.log(`📥 Live Pay Notification Captured for User [${userId}]:`, data.body);
+  // 📥 एंड्रॉइड ऐप से आने वाला लाइव नोटिफिकेशन लिस्नर (पूर्णतः डायनेमिक)
+  socket.on("live_notification_trigger", async (data) => {
+    try {
+      // ⚡ क्रिटिकल चेंज: हैंडशेक के भरोसे न रहकर सीधे एंड्रॉइड के लाइव पेलोड से आईडी निकालें
+      const targetUserId = data.userId || socket.handshake.auth?.userId;
+      const targetTripId = data.activeTripId || socket.handshake.auth?.activeTripId;
 
-  //     // टेक्स्ट मैसेज में से अमाउंट और मर्चेंट का नाम फिल्टर करना (Regex Parser)
-  //     const parsedInfo = parseNotificationText(data.body);
-  //     const isDebit = data.body.toLowerCase().includes('sent') || data.body.toLowerCase().includes('debited');
-  //     // 💾 MongoDB में एंट्री को प्रॉपर स्टोर करना
-  //     const newLog = new NotificationLog({
-  //       userId: userId,
-  //       activeTripId: (activeTripId && activeTripId.trim() !== "") ? activeTripId : null,
-  //       appPackage: data.appPackage,
-  //       title: data.title,
-  //       rawBody: data.body,
-  //       amount: parsedInfo.amount,
-  //       merchant: parsedInfo.merchant,
-  //       type: isDebit ? 'debit' : 'credit',
-  //       isGroupExpense: !!(activeTripId && activeTripId.trim() !== ""),
-  //       timestamp: data.timestamp || Date.now()
-  //     });
+      if (!targetUserId) {
+        console.error("❌ Interception Aborted: Unidentified User! No userId found in payload or handshake.");
+        return;
+      }
 
-  //     const savedLog = await newLog.save();
-  //     console.log("💾 Notification Data successfully backed up in MongoDB!");
+      console.log(`📥 [LIVE_PAYMENT] Captured for Dynamic User [${targetUserId}] | App: ${data.appPackage}`);
+      console.log(`📄 [RAW_TEXT]: ${data.body || data.rawBody}`);
 
-  //     // पेलोड जो एंगुलर फ्रंटएंड को रीयल-टाइम रेंडर करने के लिए भेजा जाएगा
-  //     const uiPayload = {
-  //       logId: savedLog._id,
-  //       appPackage: savedLog.appPackage,
-  //       title: savedLog.title,
-  //       rawBody: savedLog.rawBody,
-  //       amount: savedLog.amount,
-  //       merchant: savedLog.merchant,
-  //       timestamp: savedLog.timestamp,
-  //       type: savedLog.type,
-  //       isGroupExpense: savedLog.isGroupExpense
-  //     };
-
-  //     // 📢 लाइव ब्रॉडकास्ट डिसीजन मेकर
-  //     if (activeTripId && activeTripId.trim() !== "") {
-  //       // पूरे ग्रुप के दोस्तों की एंगुलर स्क्रीन पर एक साथ सिंक करें
-  //       io.to(activeTripId).emit("ui_notification_update", uiPayload);
-  //       console.log(`📢 Group Room (${activeTripId}) updated live!`);
-  //     } else {
-  //       // सिर्फ उस सिंगल यूज़र की वेब स्क्रीन पर सेंड करें
-  //       io.to(userId).emit("ui_notification_update", uiPayload);
-  //       console.log(`🔒 Private User Screen (${userId}) updated live!`);
-  //     }
-
-  //   } catch (err) {
-  //     console.error("❌ Notification interception failed:", err.message);
-  //   }
-  // });
+      const messageBody = data.body || data.rawBody || "";
+      const parsedInfo = parseNotificationText(messageBody);
+      
+      // डेबिट या क्रेडिट पहचानने का लॉजिक
+      const isDebit = messageBody.toLowerCase().includes('sent') || 
+                      messageBody.toLowerCase().includes('debited') || 
+                      messageBody.toLowerCase().includes('paid');
+      
+      // 💾 MongoDB में लॉग सुरक्षित करें (डायनेमिक यूजर मैपिंग के साथ)
+      // const newLog = new NotificationLog({
+      //   userId: targetUserId,
+      //   activeTripId: (targetTripId && targetTripId.trim() !== "") ? targetTripId : null,
+      //   appPackage: data.appPackage,
+      //   title: data.title,
+      //   rawBody: messageBody,
+      //   amount: parsedInfo.amount,
+      //   merchant: parsedInfo.merchant,
+      //   type: isDebit ? 'debit' : 'credit',
+      //   isGroupExpense: !!(targetTripId && targetTripId.trim() !== ""),
+      //   timestamp: data.timestamp || Date.now()
+      // });
 
 
+      const newLog = new NotificationLog({
+        userId: targetUserId,
+        activeTripId: (targetTripId && targetTripId.trim() !== "") ? targetTripId : null,
+        appPackage: data.appPackage,
+        title: data.title,
+        rawBody: messageBody,
+        amount: parsedInfo.amount,
+        merchant: parsedInfo.merchant,
+        senderName: parsedInfo.senderName,     // 🔥 पार्सर से आया नाम यहाँ स्टोर होगा
+        receiverName: parsedInfo.receiverName, // 🔥 पार्सर से आया नाम यहाँ स्टोर होगा
+        type: isDebit ? 'debit' : 'credit',
+        isGroupExpense: !!(targetTripId && targetTripId.trim() !== ""),
+        timestamp: data.timestamp || Date.now()
+      });
 
-  // 📥 एंड्रॉइड ऐप से आने वाला लाइव नोटिफिकेशन लिस्नर (server.js के अंदर इसे रिप्लेस करें)
-socket.on("live_notification_trigger", async (data) => {
-  try {
-    console.log(`📥 Live Pay Notification Captured for User [${userId}]:`, data.body);
 
-    const parsedInfo = parseNotificationText(data.body);
-    const isDebit = data.body.toLowerCase().includes('sent') || data.body.toLowerCase().includes('debited') || data.body.toLowerCase().includes('paid');
-    
-    // 💾 MongoDB में लॉग सुरक्षित करें
-    const newLog = new NotificationLog({
-      userId: userId,
-      activeTripId: (activeTripId && activeTripId.trim() !== "") ? activeTripId : null,
-      appPackage: data.appPackage,
-      title: data.title,
-      rawBody: data.body,
-      amount: parsedInfo.amount,
-      merchant: parsedInfo.merchant,
-      type: isDebit ? 'debit' : 'credit',
-      isGroupExpense: !!(activeTripId && activeTripId.trim() !== ""),
-      timestamp: data.timestamp || Date.now()
-    });
 
-    const savedLog = await newLog.save();
-    console.log("💾 Notification Data successfully backed up in MongoDB!");
+      const savedLog = await newLog.save();
+      console.log(`💾 [MONGO_SUCCESS] Log saved with ID: ${savedLog._id} for User: ${targetUserId}`);
 
-    // 🔥 प्रो-आर्किटेक्चर मैजिक: बैकग्राउंड वॉलेट को तुरंत अपडेट करें!
-    const { updateWalletBalance } = require('./utils/balanceEngine');
-    await updateWalletBalance(userId);
+      // 🔥 प्रो-आर्किटेक्चर मैजिक: बैकग्राउंड वॉलेट को उसी विशिष्ट यूजर आईडी के लिए अपडेट करें!
+      await updateWalletBalance(targetUserId);
+      console.log(`📊 [ENGINE_SYNC] Wallet updated dynamically for User: ${targetUserId}`);
 
-    const uiPayload = {
-      logId: savedLog._id,
-      appPackage: savedLog.appPackage,
-      title: savedLog.title,
-      rawBody: savedLog.rawBody,
-      amount: savedLog.amount,
-      merchant: savedLog.merchant,
-      timestamp: savedLog.timestamp,
-      type: savedLog.type,
-      isGroupExpense: savedLog.isGroupExpense
-    };
+      // फ्रंटएंड के लिए परफेक्ट रिस्पॉन्स पेलोड
+      const uiPayload = {
+        logId: savedLog._id,
+        appPackage: savedLog.appPackage,
+        title: savedLog.title,
+        rawBody: savedLog.rawBody,
+        amount: savedLog.amount,
+        merchant: savedLog.merchant,
+        timestamp: savedLog.timestamp,
+        senderName: savedLog.senderName,     // 🔥 एंगुलर लिस्ट में दिखाने के लिए
+        receiverName: savedLog.receiverName, // 🔥 एंगुलर लिस्ट में दिखाने के लिए
+        type: savedLog.type,
+        isGroupExpense: savedLog.isGroupExpense,
+        userId: targetUserId // फ्रंटएंड को बताएं कि यह किसका ट्रांजैक्शन है
+      };
 
-    // 📢 लाइव ब्रॉडकास्ट डेसिशन
-    if (activeTripId && activeTripId.trim() !== "") {
-      io.to(activeTripId).emit("ui_notification_update", uiPayload);
-      console.log(`📢 Group Room (${activeTripId}) updated live!`);
-    } else {
-      io.to(userId).emit("ui_notification_update", uiPayload);
-      console.log(`🔒 Private User Screen (${userId}) updated live!`);
+
+      // 📢 लाइव ब्रॉडकास्ट डेसिशन (मल्टी-यूज़र सेफ)
+      if (targetTripId && targetTripId.trim() !== "") {
+        // पूरे ग्रुप/ट्रिप के दोस्तों की स्क्रीन पर लाइव सिंक करें
+        io.to(targetTripId).emit("ui_notification_update", uiPayload);
+        console.log(`📢 [GROUP_BROADCAST] Broadcasted to Trip Room: [${targetTripId}]`);
+      } else {
+        // सिर्फ उस विशिष्ट सिंगल यूज़र की वेब स्क्रीन पर सेंड करें
+        io.to(targetUserId).emit("ui_notification_update", uiPayload);
+        console.log(`🔒 [PRIVATE_EMIT] Sent exclusively to User Room: [${targetUserId}]`);
+      }
+
+    } catch (err) {
+      console.error("❌ [CRITICAL_INTERCEPT_ERROR]:", err.message);
     }
+  });
 
-  } catch (err) {
-    console.error("❌ Notification interception failed:", err.message);
-  }
-});
   socket.on("disconnect", () => {
-    console.log(`🔌 Socket connection closed for user: ${userId}`);
+    console.log(`🔌 Socket Connection Closed for Client: ${socket.id}`);
   });
 });
 
-// 🚀 SERVER LISTEN (IMPORTANT: सॉकेट के लिए 'server.listen' ही इस्तेमाल होना चाहिए)
+// 🚀 SERVER LISTEN
 const PORT = process.env.PORT || 5000;
-server.listen(PORT, () => console.log(`🚀 Server running on port ${PORT}`));
+server.listen(PORT, () => console.log(`🚀 Multi-User Dynamic Server running on port ${PORT}`));
