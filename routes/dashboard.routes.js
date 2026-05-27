@@ -6,33 +6,171 @@ const Wallet = require('../models/Wallet');
 const Khata = require('../models/Khata');
 const NotificationLog = require('../models/NotificationLog');
 const { updateWalletBalance } = require('../utils/balanceEngine');
+const DailySummary = require('../models/DailySummary');
 const verifyToken = require('../middleware/auth');
 
 // 📊 होम स्क्रीन का संपूर्ण डेटा (Today's Transactions + Live Wallet Breakdown)
+// router.get('/summary', verifyToken, async (req, res) => {
+//   try {
+//     const userId = req.user._id;
+
+//     // 🔄 प्रोडक्शन बेस्ट प्रैक्टिस: हर बार लाइव डेटा कैलकुलेट करके वॉलेट सिंक करें
+//     const wallet = await updateWalletBalance(userId);
+
+//     // 🚗 एक्टिव ट्रिप और उसके मेंबर्स की जानकारी निकालें
+//     const activeTrip = await Trip.findOne({ 
+//       $or: [{ createdBy: userId }, { members: userId }], 
+//       isActive: true 
+//     }).populate('members', 'fullname email phone');
+
+//     // 🕒 आज के सभी ट्रांजैक्शन्स (Filter from 12:00 AM of today)
+//     const todayStart = new Date();
+//     todayStart.setHours(0, 0, 0, 0);
+
+//     // नोट: अगर आपकी कलेक्शन में 'timestamp' की जगह 'createdAt' है, तो इसे बदल लें
+//     const todayTransactions = await NotificationLog.find({
+//       userId: userId.toString(),
+//       createdAt: { $gte: todayStart } 
+//     }).sort({ createdAt: -1 });
+
+//     // 🎯 रियल-वर्ल्ड क्लीन एपीआई रिस्पॉन्स स्ट्रक्चर
+//     res.status(200).json({
+//       status: "success",
+//       timestamp: new Date(),
+//       data: {
+//         walletSummary: {
+//           totalBalance: wallet ? wallet.totalBalance : 0,
+//           youWillGive: wallet ? wallet.youWillGive : 0,
+//           youWillGet: wallet ? wallet.youWillGet : 0,
+//           currency: wallet ? wallet.currency || 'INR' : 'INR',
+//           status: wallet ? wallet.status || 'active' : 'active',
+//           totalActiveBanks: wallet ? wallet.banks.length : 0,
+//           // 🔥 अब यह एरे फ्रंटएंड पर बैंक वाइज यूआई कार्ड्स (SBI, HDFC) बनाने में मदद करेगा
+//           banksBreakdown: wallet ? wallet.banks : []
+//         },
+//         activeTrip: activeTrip ? {
+//           id: activeTrip._id,
+//           tripName: activeTrip.tripName,
+//           budget: activeTrip.budget,
+//           membersCount: activeTrip.members.length,
+//           membersList: activeTrip.members
+//         } : null,
+//         todayTransactions: todayTransactions.map(log => ({
+//           id: log._id,
+//           bankName: log.bankName ? log.bankName.toUpperCase() : 'CASH',
+//           type: log.type, // credit / debit
+//           amount: log.amount,
+//           message: log.message,
+//           time: log.createdAt
+//         }))
+//       }
+//     });
+
+//   } catch (err) {
+//     console.error("❌ Dashboard Summary Route Error:", err.message);
+//     res.status(500).json({ status: "error", error: err.message });
+//   }
+// });
+
+
+
 router.get('/summary', verifyToken, async (req, res) => {
   try {
     const userId = req.user._id;
 
-    // 🔄 प्रोडक्शन बेस्ट प्रैक्टिस: हर बार लाइव डेटा कैलकुलेट करके वॉलेट सिंक करें
+    // 🔄 लाइव वॉलेट बैलेंस सिंक
     const wallet = await updateWalletBalance(userId);
 
-    // 🚗 एक्टिव ट्रिप और उसके मेंबर्स की जानकारी निकालें
+    // 🚗 एक्टिव ट्रिप की जानकारी
     const activeTrip = await Trip.findOne({ 
       $or: [{ createdBy: userId }, { members: userId }], 
       isActive: true 
     }).populate('members', 'fullname email phone');
 
-    // 🕒 आज के सभी ट्रांजैक्शन्स (Filter from 12:00 AM of today)
+    // 🕒 आज का समय (12:00 AM से अब तक)
     const todayStart = new Date();
     todayStart.setHours(0, 0, 0, 0);
 
-    // नोट: अगर आपकी कलेक्शन में 'timestamp' की जगह 'createdAt' है, तो इसे बदल लें
+    // आज के सारे लॉग्स निकालें (ऑनलाइन बैंक एसएमएस + ऑफलाइन मैन्युअल एंट्रीज)
     const todayTransactions = await NotificationLog.find({
       userId: userId.toString(),
       createdAt: { $gte: todayStart } 
     }).sort({ createdAt: -1 });
 
-    // 🎯 रियल-वर्ल्ड क्लीन एपीआई रिस्पॉन्स स्ट्रक्चर
+    // 📈 सेपरेट फ़ील्ड्स कैलकुलेशन वेरिएबल्स
+    let todayCredit = 0;
+    let todayDebit = 0;
+    let todayYouWillGet = 0;  // उधार दिया
+    let todayYouWillGive = 0; // उधार लिया
+    let onlineCount = 0;
+    let offlineCount = 0;
+    const todayIds = [];
+
+    todayTransactions.forEach(log => {
+      todayIds.push(log._id);
+      
+      // A. ऑफलाइन बनाम ऑनलाइन काउंट चेक करें
+      // (अगर आपकी ऑफलाइन एंट्री में पैकेज का नाम 'offline' या 'manual' रहता है)
+      if (log.appPackage === 'offline' || log.appPackage === 'manual' || !log.appPackage) {
+        offlineCount++;
+      } else {
+        onlineCount++;
+      }
+
+      // B. उधारी टैगिंग चेक (Proper Separate Logic)
+      if (log.isTagged === 'will-get') {
+        todayYouWillGet += log.amount; // आपने उधार दिया (यू विल गेट)
+      } else if (log.isTagged === 'will-give') {
+        todayYouWillGive += log.amount; // आपने उधार लिया (यू विल गिव)
+      }
+
+      // C. कोर बैलेंस चेक (क्रेडिट/डेबिट)
+      if (log.type === 'credit') {
+        todayCredit += log.amount;
+      } else if (log.type === 'debit') {
+        todayDebit += log.amount;
+      }
+    });
+
+    // राउंडिंग ऑफ ताकि फ्लोटिंग पॉइंट कचरा न आए
+    const round = (num) => Math.round(num * 100) / 100;
+    
+    todayCredit = round(todayCredit);
+    todayDebit = round(todayDebit);
+    todayYouWillGet = round(todayYouWillGet);
+    todayYouWillGive = round(todayYouWillGive);
+
+    // तारीख की स्ट्रिंग (YYYY-MM-DD)
+    const tzOffset = (new Date()).getTimezoneOffset() * 60000;
+    const todayDateString = (new Date(Date.now() - tzOffset)).toISOString().split('T')[0];
+
+    // 💾 नए कलेक्शन में डाटा को प्रॉपर सेपरेट फील्ड्स के साथ सेव करना
+    let dailyAnalytics = null;
+    try {
+      dailyAnalytics = await DailySummary.findOneAndUpdate(
+        { 
+          userId: new mongoose.Types.ObjectId(userId.toString()), 
+          dateString: todayDateString 
+        },
+        {
+          totalCreditAmount: todayCredit,
+          totalDebitAmount: todayDebit,
+          totalYouWillGet: todayYouWillGet,   // 🟢 कितना उधार दिया
+          totalYouWillGive: todayYouWillGive, // 🔴 कितना उधार लिया
+          onlineTxnCount: onlineCount,
+          offlineTxnCount: offlineCount,
+          totalTransactionCount: todayTransactions.length,
+          transactionsList: todayIds,
+          netSavings: round(todayCredit - todayDebit),
+          topExpenseSource: todayTransactions[0] ? todayTransactions[0].title : "N/A"
+        },
+        { new: true, upsert: true }
+      );
+    } catch (dbErr) {
+      console.error("⚠️ Daily Summary Analytics Upsert Failed:", dbErr.message);
+    }
+
+    // 🎯 रिस्पॉन्स स्ट्रक्चर (पुरानी चीजें बिना टच किए, नए सेपरेट काउंटर्स ऐड कर दिए हैं)
     res.status(200).json({
       status: "success",
       timestamp: new Date(),
@@ -43,9 +181,21 @@ router.get('/summary', verifyToken, async (req, res) => {
           youWillGet: wallet ? wallet.youWillGet : 0,
           currency: wallet ? wallet.currency || 'INR' : 'INR',
           status: wallet ? wallet.status || 'active' : 'active',
-          totalActiveBanks: wallet ? wallet.banks.length : 0,
-          // 🔥 अब यह एरे फ्रंटएंड पर बैंक वाइज यूआई कार्ड्स (SBI, HDFC) बनाने में मदद करेगा
-          banksBreakdown: wallet ? wallet.banks : []
+          totalActiveBanks: wallet ? wallet.banks ? wallet.banks.length : 0 : 0,
+          banksBreakdown: wallet ? wallet.banks || [] : [],
+          message: wallet ? wallet.message : "वॉलेट अपडेटेड है।"
+        },
+        // 🔥 फ्रंटएंड के लिए आज का पूरा उधारी और ट्रांजैक्शन समरी काउंटर डेटा
+        todayStats: {
+          totalTransactionsCount: todayTransactions.length,
+          onlineTransactionsCount: onlineCount,
+          offlineTransactionsCount: offlineCount,
+          totalCreditAmount: todayCredit,
+          totalDebitAmount: todayDebit,
+          todayUdharDiya: todayYouWillGet,   // 🟢 कितना उधार दिया आज
+          todayUdharLiya: todayYouWillGive,  // 🔴 कितना उधार लिया आज
+          netSavings: round(todayCredit - todayDebit),
+          dateKey: todayDateString
         },
         activeTrip: activeTrip ? {
           id: activeTrip._id,
@@ -56,10 +206,13 @@ router.get('/summary', verifyToken, async (req, res) => {
         } : null,
         todayTransactions: todayTransactions.map(log => ({
           id: log._id,
-          bankName: log.bankName ? log.bankName.toUpperCase() : 'CASH',
-          type: log.type, // credit / debit
+          bankName: log.title ? log.title.toUpperCase() : 'OFFLINE ENTRY', // अगर ऑफलाइन है तो साफ दिखेगा
+          type: log.type,
+          isTagged: log.isTagged, // 'clean', 'will-get', 'will-give'
           amount: log.amount,
-          message: log.message,
+          senderName: log.senderName || "Unknown",
+          receiverName: log.receiverName || "Unknown",
+          message: log.rawBody ? log.rawBody.split('\n')[0] : "Manual/Offline Entry",
           time: log.createdAt
         }))
       }
@@ -70,6 +223,7 @@ router.get('/summary', verifyToken, async (req, res) => {
     res.status(500).json({ status: "error", error: err.message });
   }
 });
+
 
 // ✈️ 2. नया ट्रिप बनाएं (मल्टीपल यूज़र्स/दोस्तों को जोड़कर)
 router.post('/create-trip', verifyToken, async (req, res) => {
