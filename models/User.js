@@ -49,10 +49,15 @@ const bcrypt = require('bcryptjs');
 
 const UserSchema = new mongoose.Schema({
   fullname: { type: String, required: true },
-  email: { type: String, required: true, unique: true, lowercase: true }, // 🔥 unique: true से कभी डुप्लीकेट नहीं होगा
-  phone: { type: String, required: true, unique: true },                 // 🔥 unique: true
+  email: { type: String, required: true, unique: true, lowercase: true }, 
+  phone: { type: String, required: true, unique: true }, 
   password: { type: String, required: true },
-  activeTripId: { type: String, default: null }
+  activeTripId: { type: String, default: null },
+  currency: { type: String, default: 'INR' },
+  isVerified: { type: Boolean, default: false },
+  deviceTokens: [{ type: String }],
+  createdAt: Date,
+  updatedAt: Date
 });
 
 UserSchema.methods.matchPassword = async function (enteredPassword) {

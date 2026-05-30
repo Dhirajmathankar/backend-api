@@ -520,9 +520,12 @@ app.use('/api/chat', require('./routes/chat.routes'));
 app.use('/api/notifications', require('./routes/notification.routes'));
 app.use('/api/dashboard', require('./routes/dashboard.routes'));
 app.use('/api/khata', require('./routes/khata.routes'));
+app.use('/api/v1/wallet', require('./routes/wallet.routes'));
+app.use('/api/v1/transactions', require('./routes/tx.routes'));
+app.use('/api/v1/khata-chat', require('./routes/khataChat.routes'));
 
 
-// स्टैटिक इमेजेस सर्व करने का फोल्डर
+
 const IMAGES_FOLDER = "D:/Project New/APP_LOGIN_PAGE/ALL-IMAGE-PROJECT";
 app.use('/images', express.static(IMAGES_FOLDER));
 console.log("Images are being served from:", IMAGES_FOLDER);
